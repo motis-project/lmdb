@@ -2,18 +2,15 @@
 
 #include <string>
 #include <system_error>
-#include <type_traits>
 
-#include "lmdb/lmdb.h"
+#include "lmdb.h"
 
 namespace lmdb {
 
 class error_category_impl : public std::error_category {
  public:
-  const char* name() const noexcept override { return "lmdb"; }
-  std::string message(int ec) const noexcept override {
-    return mdb_strerror(ec);
-  }
+  const char* name() const noexcept override;
+  std::string message(int ec) const noexcept override;
 };
 
 inline const std::error_category& error_category() {

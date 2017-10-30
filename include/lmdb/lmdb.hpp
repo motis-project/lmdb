@@ -1,27 +1,27 @@
 #pragma once
 
-#include "lmdb/enum_helper.hpp"
-#include "lmdb/error.hpp"
-#include "lmdb/lmdb.h"
+#include "lmdb.h"
 
-#define CHECKED(EXPR)                                      \
-  {                                                        \
-    if (auto ec = (EXPR); ec != MDB_SUCCESS) {             \
-      throw std::system_error(error::make_error_code(ec)); \
-    }                                                      \
+#include "lmdb/enum_helper.h"
+#include "lmdb/error.h"
+
+#define EX(EXPR)                                         \
+  if (auto ec = (EXPR); ec != MDB_SUCCESS) {             \
+    throw std::system_error(error::make_error_code(ec)); \
   }
 
 namespace lmdb {
 
 ENUM_FLAGS(env_flags){
-    FIXEDMAP = 0x01,      NOSUBDIR = 0x4000,     NOSYNC = 0x10000,
-    RDONLY = 0x20000,     NOMETASYNC = 0x40000,  WRITEMAP = 0x80000,
-    MAPASYNC = 0x100000,  NOTLS = 0x200000,      NOLOCK = 0x400000,
-    NORDAHEAD = 0x800000, NOMEMINIT = 0x1000000, PREVMETA = 0x2000000};
+    NONE = 0x0,          FIXEDMAP = 0x01,      NOSUBDIR = 0x4000,
+    NOSYNC = 0x10000,    RDONLY = 0x20000,     NOMETASYNC = 0x40000,
+    WRITEMAP = 0x80000,  MAPASYNC = 0x100000,  NOTLS = 0x200000,
+    NOLOCK = 0x400000,   NORDAHEAD = 0x800000, NOMEMINIT = 0x1000000,
+    PREVMETA = 0x2000000};
 
-ENUM_FLAGS(dbi_flags){REVERSEKEY = 0x02, DUPSORT = 0x04,    INTEGERKEY = 0x08,
-                      DUPFIXED = 0x10,   INTEGERDUP = 0x20, REVERSEDUP = 0x40,
-                      CREATE = 0x40000};
+ENUM_FLAGS(dbi_flags){NONE = 0x0,        REVERSEKEY = 0x02, DUPSORT = 0x04,
+                      INTEGERKEY = 0x08, DUPFIXED = 0x10,   INTEGERDUP = 0x20,
+                      REVERSEDUP = 0x40, CREATE = 0x40000};
 
 ENUM_FLAGS(put_flags){NOOVERWRITE = 0x10, NODUPDATA = 0x20, CURRENT = 0x40,
                       RESERVE = 0x10000,  APPEND = 0x20000, APPENDDUP = 0x40000,
@@ -50,35 +50,51 @@ enum class cursor_op {
 };
 
 struct env final {
-  env() { CHECKED(mdb_env_create(&env_)); }
-
-  env(char const* path, env_flags flags, int mode) : env() {
-    open(path, flags, mode);
-  }
-
+  env() { EX(mdb_env_create(&env_)); }
   ~env() { mdb_env_close(env_); }
 
-  void set_maxreaders(unsigned int readers) {
-    CHECKED(mdb_env_set_maxreaders(env_, readers));
+  void open(char const* path, env_flags flags = env_flags::NONE,
+            unsigned mode = 0644) {
+    EX(mdb_env_open(env_, path, static_cast<unsigned>(flags), mode));
   }
 
-  void set_mapsize(mdb_size_t size) {
-    CHECKED(mdb_env_set_mapsize(env_, size));
-  }
-
-  void set_maxdbs(MDB_dbi dbs) { CHECKED(mdb_env_set_maxdbs(env_, dbs)); }
-
-  void open(char const* path, env_flags flags, int mode) {
-    CHECKED(mdb_env_open(env_, path,
-                         static_cast<std::underlying_type_t<env_flags>>(flags),
-                         mode));
-  }
+  void set_maxreaders(unsigned int n) { EX(mdb_env_set_maxreaders(env_, n)); }
+  void set_mapsize(mdb_size_t size) { EX(mdb_env_set_mapsize(env_, size)); }
+  void set_maxdbs(MDB_dbi dbs) { EX(mdb_env_set_maxdbs(env_, dbs)); }
 
   MDB_env* env_;
 };
 
-struct txn {};
+struct txn final {
+  struct dbi final {
+    dbi(MDB_env* env, MDB_txn* txn, char const* name, dbi_flags const flags)
+        : env_(env) {
+      EX(mdb_dbi_open(txn, name, static_cast<unsigned>(flags), &dbi_));
+    }
+    ~dbi() { mdb_dbi_close(env_, dbi_); }
+    MDB_env* env_;
+    MDB_dbi dbi_;
+  };
 
-struct cursor {};
+  txn(env& env, env_flags const flags = env_flags::NONE) : env_(env.env_) {
+    EX(mdb_txn_begin(env.env_, nullptr, static_cast<unsigned>(flags), &txn_));
+  }
+
+  txn(env& env, txn& parent, env_flags const flags) : env_(env.env_) {
+    EX(mdb_txn_begin(env.env_, parent.txn_, static_cast<unsigned>(flags),
+                     &txn_));
+  }
+
+  dbi dbi_open(char const* name = nullptr, dbi_flags flags = dbi_flags::NONE) {
+    return dbi{env_, txn_, name, flags};
+  }
+
+  dbi dbi_open(dbi_flags flags) { return dbi{env_, txn_, nullptr, flags}; }
+
+  MDB_env* env_;
+  MDB_txn* txn_;
+};
+
+struct cursor final {};
 
 }  // namespace lmdb

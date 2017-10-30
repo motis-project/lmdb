@@ -1,0 +1,9 @@
+{
+   <libcxx>
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   fun:calloc
+   fun:_ZN10__cxxabiv122__calloc_with_fallbackEmm
+   fun:__cxa_get_globals
+   fun:__cxa_throw
+}
