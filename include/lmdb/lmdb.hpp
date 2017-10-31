@@ -218,7 +218,7 @@ struct txn final {
       }
     }
 
-    dbi(dbi&& d) : env_{d.env_}, dbi_{dbi_} { d.env_ = nullptr; }
+    dbi(dbi&& d) : env_{d.env_}, dbi_{d.dbi_} { d.env_ = nullptr; }
 
     dbi& operator=(dbi&& d) {
       env_ = d.env_;
