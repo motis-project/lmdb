@@ -33,4 +33,51 @@ gcc-7-valgrind:
     - cd gcc-7-valgrind
     - cmake -DCMAKE_BUILD_TYPE=Debug ..
     - make -j12 lmdb-test
-    - ./lmdb-test
+    - valgrind --leak-check=full --show-reachable=yes --gen-suppressions=all --suppressions=../valgrind.supp ./lmdb-test
+
+msvc-release:
+  tags:
+    - windows
+  script:
+    - set WD=%cd%
+    - call "C:\Program Files (x86)\Microsoft Visual C++ Build Tools\vcbuildtools.bat" amd64
+    - cd %WD%
+    - mkdir build-msvc-release
+    - cd build-msvc-release
+    - cmake -G "NMake Makefiles JOM" -DCMAKE_BUILD_TYPE=Release ..
+    - jom lmdb-test
+    - lmdb-test
+
+msvc-debug:
+  tags:
+    - windows
+  script:
+    - set WD=%cd%
+    - call "C:\Program Files (x86)\Microsoft Visual C++ Build Tools\vcbuildtools.bat" amd64
+    - cd %WD%
+    - mkdir build-msvc-debug
+    - cd build-msvc-debug
+    - cmake -G "NMake Makefiles JOM" -DCMAKE_BUILD_TYPE=Debug ..
+    - jom lmdb-test
+    - lmdb-test
+
+clang-format:
+  tags:
+    - artful
+  script:
+    - mkdir build-clang-format
+    - cd build-clang-format
+    - cmake ..
+    - make format-check
+
+clang-tidy:
+  tags:
+    - artful
+  script:
+    - export CXX=clang++
+    - export CC=clang
+    - export CXXFLAGS="-stdlib=libc++"
+    - mkdir build-clang-tidy
+    - cd build-clang-tidy
+    - cmake ..
+    - make -j12 lint

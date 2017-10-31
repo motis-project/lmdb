@@ -1,7 +1,5 @@
 #include "doctest.h"
 
-#include <iostream>
-
 #include "lmdb/lmdb.hpp"
 
 TEST_CASE("env") {
@@ -14,7 +12,8 @@ TEST_CASE("env") {
   SUBCASE("open with non-existent directory throws") {
     CHECK_THROWS_AS(
         env.open("/does_not_exist_1337",
-                 lmdb::env_flags::FIXEDMAP | lmdb::env_flags::NOSYNC, 0600),
+                 lmdb::env_open_flags::FIXEDMAP | lmdb::env_open_flags::NOSYNC,
+                 0600),
         std::system_error);
   }
 }
