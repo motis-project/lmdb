@@ -1,5 +1,6 @@
 #pragma once
 
+#include <limits>
 #include <optional>
 #include <string_view>
 
@@ -166,8 +167,14 @@ enum class cursor_op {
 };
 
 struct env final {
-  env() { EX(mdb_env_create(&env_)); }
+  env() : env_{nullptr} { EX(mdb_env_create(&env_)); }
   ~env() { mdb_env_close(env_); }
+
+  env(env const&) = delete;
+  env(env&&) = delete;
+
+  env& operator=(env const&) = delete;
+  env& operator=(env&&) = delete;
 
   void open(char const* path, env_open_flags flags = env_open_flags::NONE,
             unsigned mode = 0644) {
@@ -192,23 +199,37 @@ inline std::string_view from_mdb_val(MDB_val v) {
 struct txn final {
   struct dbi final {
     dbi(MDB_env* env, MDB_txn* txn, char const* name, dbi_flags const flags)
-        : env_(env) {
+        : env_(env), dbi_(std::numeric_limits<MDB_dbi>::max()) {
       EX(mdb_dbi_open(txn, name, static_cast<unsigned>(flags), &dbi_));
     }
     ~dbi() { mdb_dbi_close(env_, dbi_); }
+
+    dbi(dbi const&) = delete;
+    dbi(dbi&&) = delete;
+
+    dbi& operator=(dbi const&) = delete;
+    dbi& operator=(dbi&&) = delete;
+
     MDB_env* env_;
     MDB_dbi dbi_;
   };
 
-  txn(env& env, txn_flags const flags = txn_flags::NONE)
-      : committed_{false}, env_{env.env_} {
+  explicit txn(env& env, txn_flags const flags = txn_flags::NONE)
+      : committed_{false}, env_{env.env_}, txn_{nullptr} {
     EX(mdb_txn_begin(env.env_, nullptr, static_cast<unsigned>(flags), &txn_));
   }
 
-  txn(env& env, txn& parent, txn_flags const flags) : env_{env.env_} {
+  txn(env& env, txn& parent, txn_flags const flags)
+      : committed_{false}, env_{env.env_}, txn_{nullptr} {
     EX(mdb_txn_begin(env.env_, parent.txn_, static_cast<unsigned>(flags),
                      &txn_));
   }
+
+  txn(txn const&) = delete;
+  txn(txn&&) = delete;
+
+  txn& operator=(txn const&) = delete;
+  txn& operator=(txn&&) = delete;
 
   ~txn() {
     if (!committed_) {
@@ -255,24 +276,18 @@ struct txn final {
     auto k = to_mdb_val(key);
     auto v = MDB_val{0, nullptr};
     switch (auto const ec = mdb_get(txn_, dbi.dbi_, &k, &v); ec) {
-      case MDB_SUCCESS:
-        return from_mdb_val(v);
-      case MDB_NOTFOUND:
-        return {};
-      default:
-        throw std::system_error{error::make_error_code(ec)};
+      case MDB_SUCCESS: return from_mdb_val(v);
+      case MDB_NOTFOUND: return {};
+      default: throw std::system_error{error::make_error_code(ec)};
     }
   }
 
   bool del(dbi& dbi, std::string_view key) {
     auto k = to_mdb_val(key);
     switch (auto const ec = mdb_del(txn_, dbi.dbi_, &k, nullptr); ec) {
-      case MDB_SUCCESS:
-        return true;
-      case MDB_NOTFOUND:
-        return false;
-      default:
-        throw std::system_error{error::make_error_code(ec)};
+      case MDB_SUCCESS: return true;
+      case MDB_NOTFOUND: return false;
+      default: throw std::system_error{error::make_error_code(ec)};
     }
   }
 
@@ -280,12 +295,9 @@ struct txn final {
     auto k = to_mdb_val(key);
     auto v = to_mdb_val(value);
     switch (auto const ec = mdb_del(txn_, dbi.dbi_, &k, &v); ec) {
-      case MDB_SUCCESS:
-        return true;
-      case MDB_NOTFOUND:
-        return false;
-      default:
-        throw std::system_error{error::make_error_code(ec)};
+      case MDB_SUCCESS: return true;
+      case MDB_NOTFOUND: return false;
+      default: throw std::system_error{error::make_error_code(ec)};
     }
   }
 
@@ -295,9 +307,15 @@ struct txn final {
 };
 
 struct cursor final {
-  cursor(txn& txn, txn::dbi& dbi) {
+  cursor(txn& txn, txn::dbi& dbi) : cursor_{nullptr} {
     EX(mdb_cursor_open(txn.txn_, dbi.dbi_, &cursor_));
   }
+
+  cursor(cursor const&) = delete;
+  cursor(cursor&&) = delete;
+
+  cursor& operator=(cursor const&) = delete;
+  cursor& operator=(cursor&&) = delete;
 
   ~cursor() { mdb_cursor_close(cursor_); }
 
@@ -310,12 +328,9 @@ struct cursor final {
     switch (auto const ec =
                 mdb_cursor_get(cursor_, &k, &v, static_cast<MDB_cursor_op>(op));
             ec) {
-      case MDB_SUCCESS:
-        return std::make_pair(from_mdb_val(k), from_mdb_val(v));
-      case MDB_NOTFOUND:
-        return {};
-      default:
-        throw std::system_error{error::make_error_code(ec)};
+      case MDB_SUCCESS: return std::make_pair(from_mdb_val(k), from_mdb_val(v));
+      case MDB_NOTFOUND: return {};
+      default: throw std::system_error{error::make_error_code(ec)};
     }
   }
 

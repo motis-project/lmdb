@@ -1,6 +1,8 @@
 project(lmdb)
 cmake_minimum_required(VERSION 3.9)
 
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
 find_package(Threads)
 
 include_directories(include)
@@ -54,6 +56,7 @@ add_custom_target(format-check
       \(
       -name "*.cc"
       -o -name "*.h"
+      -o -name "*.hpp"
       \)
       -print0
     | xargs -0 clang-format-5.0 -i
@@ -63,3 +66,16 @@ add_custom_target(format-check
   COMMENT "Checking source code formatting"
   VERBATIM
 )
+
+add_custom_target(lint
+  /usr/bin/python
+    ${CMAKE_CURRENT_SOURCE_DIR}/tools/run-clang-tidy.py
+      -exit-on-error
+      -clang_tidy_binary "clang-tidy-5.0"
+      -header-filter "^${CMAKE_CURRENT_SOURCE_DIR}/include"
+      "^${CMAKE_CURRENT_SOURCE_DIR}/src/"
+      "^${CMAKE_CURRENT_SOURCE_DIR}/test/"
+  COMMENT "Running clang-tidy"
+  VERBATIM
+)
+add_dependencies(lint lmdb lmdb-test)
