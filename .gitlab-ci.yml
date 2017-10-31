@@ -69,3 +69,12 @@ clang-format:
     - cd build-clang-format
     - cmake ..
     - make format-check
+
+clang-tidy:
+  tags:
+    - artful
+  script:
+    - mkdir build-clang-tidy
+    - cd build-clang-tidy
+    - cmake ..
+    - make -j12 lint
