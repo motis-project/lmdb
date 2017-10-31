@@ -1,5 +1,5 @@
 project(lmdb)
-cmake_minimum_required(VERSION 3.6)
+cmake_minimum_required(VERSION 3.9)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
