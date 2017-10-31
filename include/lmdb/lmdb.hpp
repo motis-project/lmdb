@@ -1,31 +1,113 @@
 #pragma once
 
+#include <optional>
+#include <string_view>
+
 #include "lmdb.h"
 
 #include "lmdb/enum_helper.h"
 #include "lmdb/error.h"
 
 #define EX(EXPR)                                         \
-  if (auto ec = (EXPR); ec != MDB_SUCCESS) {             \
-    throw std::system_error(error::make_error_code(ec)); \
+  if (auto const ec = (EXPR); ec != MDB_SUCCESS) {       \
+    throw std::system_error{error::make_error_code(ec)}; \
   }
 
 namespace lmdb {
 
-ENUM_FLAGS(env_flags){
-    NONE = 0x0,          FIXEDMAP = 0x01,      NOSUBDIR = 0x4000,
-    NOSYNC = 0x10000,    RDONLY = 0x20000,     NOMETASYNC = 0x40000,
-    WRITEMAP = 0x80000,  MAPASYNC = 0x100000,  NOTLS = 0x200000,
-    NOLOCK = 0x400000,   NORDAHEAD = 0x800000, NOMEMINIT = 0x1000000,
+ENUM_FLAGS(env_open_flags){
+    NONE = 0x0,
+
+    // pointers to data items will be constant; highly experimental!
+    FIXEDMAP = 0x01,
+
+    // path is the database file itself (+ {}-lock), not a directory
+    NOSUBDIR = 0x4000,
+
+    // no flush; crash may undo the last commited transactions (ACI)
+    // if filesystem preserves write order and WRITEMAP is not used
+    // note: use (MAPASYNC | WRITEMAP) for WRITEMAP
+    NOSYNC = 0x10000,
+
+    // no writes allowed; lock file will be modified except on RO filesystems
+    RDONLY = 0x20000,
+
+    // flush only once per transaction; omit metadata flush
+    // flush on none-RDONLY commit or env::sync()
+    // crash may undo the last commited transaction (ACID without D)
+    NOMETASYNC = 0x40000,
+
+    // writeable memory map unless RDONLY is set
+    // faster for DBs that fit in RAM
+    // incompatible with nested transactions
+    WRITEMAP = 0x80000,
+
+    // use asynchronous flushes to disk
+    // a system crash can then corrupt the database
+    // env::sync() for on-disk database integrity until next commit
+    MAPASYNC = 0x100000,
+
+    // no thread-local storage
+    // txn::reset() keeps the slot reserved for the txn object
+    // allows for
+    // - more than one RO transaction per thread
+    // - one RO transaction for multiple threads
+    // user threads per OS thread -> user serializes writes
+    NOTLS = 0x200000,
+
+    // user manages concurrency (single-writer)
+    NOLOCK = 0x400000,
+
+    // random read performance for DB > RAM and RAM is full
+    NORDAHEAD = 0x800000,
+
+    // don't zero out memory
+    // avoids persisting leftover data from other code (security)
+    NOMEMINIT = 0x1000000,
+
+    // open the env with the previous meta page.
+    // loses the latest transaction, but may help with curruption
     PREVMETA = 0x2000000};
 
-ENUM_FLAGS(dbi_flags){NONE = 0x0,        REVERSEKEY = 0x02, DUPSORT = 0x04,
-                      INTEGERKEY = 0x08, DUPFIXED = 0x10,   INTEGERDUP = 0x20,
-                      REVERSEDUP = 0x40, CREATE = 0x40000};
+ENUM_FLAGS(txn_flags){NONE = 0x0,
 
-ENUM_FLAGS(put_flags){NOOVERWRITE = 0x10, NODUPDATA = 0x20, CURRENT = 0x40,
-                      RESERVE = 0x10000,  APPEND = 0x20000, APPENDDUP = 0x40000,
-                      MULTIPLE = 0x80000};
+                      // transaction will not perform any write operations
+                      RDONLY = 0x20000,
+
+                      // no flush when commiting this transaction
+                      NOSYNC = 0x10000,
+
+                      // flush system buffer, but omit metadata flush
+                      NOMETASYNC = 0x40000};
+
+ENUM_FLAGS(dbi_flags){
+    NONE = 0x0,
+
+    // sort in reverse order
+    REVERSEKEY = 0x02,
+
+    // keys may have multiple data items, stored in sorted order
+    DUPSORT = 0x04,
+
+    // keys are binary integers in native byte order: unsigned int or mdb_size_t
+    INTEGERKEY = 0x08,
+
+    // only in combination with DUPSORT: data items are same size
+    // enables GET_MULTIPLE,  NEXT_MULTIPLE, and PREV_MULTIPLE cursor ops
+    DUPFIXED = 0x10,
+
+    // duplicate data items are binary integers similar to INTEGERKEY keys
+    INTEGERDUP = 0x20,
+
+    // duplicate data items should be compared as strings in reverse order
+    REVERSEDUP = 0x40,
+
+    // create named database if non-existent (not allowed in RO txn / RO env)
+    CREATE = 0x40000};
+
+ENUM_FLAGS(put_flags){NONE = 0x0,          NOOVERWRITE = 0x10, NODUPDATA = 0x20,
+                      CURRENT = 0x40,      RESERVE = 0x10000,  APPEND = 0x20000,
+                      APPENDDUP = 0x40000, MULTIPLE = 0x80000};
 
 enum class cursor_op {
   FIRST,
@@ -53,7 +135,7 @@ struct env final {
   env() { EX(mdb_env_create(&env_)); }
   ~env() { mdb_env_close(env_); }
 
-  void open(char const* path, env_flags flags = env_flags::NONE,
+  void open(char const* path, env_open_flags flags = env_open_flags::NONE,
             unsigned mode = 0644) {
     EX(mdb_env_open(env_, path, static_cast<unsigned>(flags), mode));
   }
@@ -64,6 +146,14 @@ struct env final {
 
   MDB_env* env_;
 };
+
+inline MDB_val to_mdb_val(std::string_view s) {
+  return MDB_val{s.size(), const_cast<char*>(s.data())};  // NOLINT
+}
+
+inline std::string_view from_mdb_val(MDB_val v) {
+  return {static_cast<char const*>(v.mv_data), v.mv_size};
+}
 
 struct txn final {
   struct dbi final {
@@ -76,13 +166,25 @@ struct txn final {
     MDB_dbi dbi_;
   };
 
-  txn(env& env, env_flags const flags = env_flags::NONE) : env_(env.env_) {
+  txn(env& env, txn_flags const flags = txn_flags::NONE)
+      : committed_{false}, env_{env.env_} {
     EX(mdb_txn_begin(env.env_, nullptr, static_cast<unsigned>(flags), &txn_));
   }
 
-  txn(env& env, txn& parent, env_flags const flags) : env_(env.env_) {
+  txn(env& env, txn& parent, txn_flags const flags) : env_{env.env_} {
     EX(mdb_txn_begin(env.env_, parent.txn_, static_cast<unsigned>(flags),
                      &txn_));
+  }
+
+  ~txn() {
+    if (!committed_) {
+      mdb_txn_abort(txn_);
+    }
+  }
+
+  void commit() {
+    committed_ = true;
+    mdb_txn_commit(txn_);
   }
 
   dbi dbi_open(char const* name = nullptr, dbi_flags flags = dbi_flags::NONE) {
@@ -91,6 +193,64 @@ struct txn final {
 
   dbi dbi_open(dbi_flags flags) { return dbi{env_, txn_, nullptr, flags}; }
 
+  void put(dbi& dbi, std::string_view key, std::string_view value,
+           put_flags const flags = put_flags::NONE) {
+    auto k = to_mdb_val(key);
+    auto v = to_mdb_val(value);
+    EX(mdb_put(txn_, dbi.dbi_, &k, &v, static_cast<unsigned>(flags)));
+  }
+
+  void put_nodupdata(dbi& dbi, std::string_view key, std::string_view value,
+                     put_flags const flags = put_flags::NONE) {
+    auto k = to_mdb_val(key);
+    auto v = to_mdb_val(value);
+    if (auto const ec =
+            mdb_put(txn_, dbi.dbi_, &k, &v,
+                    static_cast<unsigned>(flags | put_flags::NODUPDATA));
+        ec != MDB_KEYEXIST && ec != MDB_SUCCESS) {
+      throw std::system_error{error::make_error_code(ec)};
+    }
+  }
+
+  std::optional<std::string_view> get(dbi& dbi, std::string_view key) {
+    auto k = to_mdb_val(key);
+    auto v = MDB_val{0, nullptr};
+    switch (auto const ec = mdb_get(txn_, dbi.dbi_, &k, &v); ec) {
+      case MDB_SUCCESS:
+        return from_mdb_val(v);
+      case MDB_NOTFOUND:
+        return {};
+      default:
+        throw std::system_error{error::make_error_code(ec)};
+    }
+  }
+
+  bool del(dbi& dbi, std::string_view key) {
+    auto k = to_mdb_val(key);
+    switch (auto const ec = mdb_del(txn_, dbi.dbi_, &k, nullptr); ec) {
+      case MDB_SUCCESS:
+        return true;
+      case MDB_NOTFOUND:
+        return false;
+      default:
+        throw std::system_error{error::make_error_code(ec)};
+    }
+  }
+
+  bool del_dupdata(dbi& dbi, std::string_view key, std::string_view value) {
+    auto k = to_mdb_val(key);
+    auto v = to_mdb_val(value);
+    switch (auto const ec = mdb_del(txn_, dbi.dbi_, &k, &v); ec) {
+      case MDB_SUCCESS:
+        return true;
+      case MDB_NOTFOUND:
+        return false;
+      default:
+        throw std::system_error{error::make_error_code(ec)};
+    }
+  }
+
+  bool committed_;
   MDB_env* env_;
   MDB_txn* txn_;
 };
