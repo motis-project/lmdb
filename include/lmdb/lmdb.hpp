@@ -105,9 +105,43 @@ ENUM_FLAGS(dbi_flags){
     // create named database if non-existent (not allowed in RO txn / RO env)
     CREATE = 0x40000};
 
-ENUM_FLAGS(put_flags){NONE = 0x0,          NOOVERWRITE = 0x10, NODUPDATA = 0x20,
-                      CURRENT = 0x40,      RESERVE = 0x10000,  APPEND = 0x20000,
-                      APPENDDUP = 0x40000, MULTIPLE = 0x80000};
+ENUM_FLAGS(put_flags){
+    NONE = 0x0,
+
+    // enter the new key/data pair only if not already contained
+    // returns KEYEXIST if key/value pair is already contained even with DUPSORT
+    NOOVERWRITE = 0x10,
+
+    // enter key/value pair only if not already contained
+    // only with DUPSORT database
+    // returns KEYEXIST if key/value pair is already contained
+    NODUPDATA = 0x20,
+
+    // replace current item; key parameter still required (has to match)
+    // ideal: size of new is same as old size; otherwise delete+insert
+    CURRENT = 0x40,
+
+    // only make place for data of the given size; no copy
+    // returns a pointer to the reserved space to be filled later
+    // returned pointer valid until next update operation / transaction end
+    // not compatible with DUPSORT!
+    RESERVE = 0x10000,
+
+    // insert to end of database without key comparison (useful for bulk insert)
+    // returns MDB_KEYEXIST if not sorted
+    APPEND = 0x20000,
+
+    // as APPEND, but for sorted dup data
+    APPENDDUP = 0x40000,
+
+    // only with DUPFIXED: store multiple contiguous data elements
+    // data argument must be an array of two MDB_vals:
+    // param=[
+    //  {mv_size="size of a singe data element", mv_data="ptr to begin of arr"},
+    //  {mv_size="number of data elements to store", mv_data=unused}
+    // ]
+    // after call: param[1].mv_size = number of elements written
+    MULTIPLE = 0x80000};
 
 enum class cursor_op {
   FIRST,
@@ -187,6 +221,11 @@ struct txn final {
     mdb_txn_commit(txn_);
   }
 
+  void clear() {
+    mdb_txn_reset(txn_);
+    EX(mdb_txn_renew(txn_));
+  }
+
   dbi dbi_open(char const* name = nullptr, dbi_flags flags = dbi_flags::NONE) {
     return dbi{env_, txn_, name, flags};
   }
@@ -255,6 +294,49 @@ struct txn final {
   MDB_txn* txn_;
 };
 
-struct cursor final {};
+struct cursor final {
+  cursor(txn& txn, txn::dbi& dbi) {
+    EX(mdb_cursor_open(txn.txn_, dbi.dbi_, &cursor_));
+  }
+
+  ~cursor() { mdb_cursor_close(cursor_); }
+
+  void renew(txn& t) { EX(mdb_cursor_renew(t.txn_, cursor_)); }
+
+  std::optional<std::pair<std::string_view, std::string_view>> get(
+      cursor_op const op) {
+    auto k = MDB_val{};
+    auto v = MDB_val{};
+    switch (auto const ec =
+                mdb_cursor_get(cursor_, &k, &v, static_cast<MDB_cursor_op>(op));
+            ec) {
+      case MDB_SUCCESS:
+        return std::make_pair(from_mdb_val(k), from_mdb_val(v));
+      case MDB_NOTFOUND:
+        return {};
+      default:
+        throw std::system_error{error::make_error_code(ec)};
+    }
+  }
+
+  void put(std::string_view key, std::string_view value,
+           put_flags const flags) {
+    auto k = to_mdb_val(key);
+    auto v = to_mdb_val(value);
+    EX(mdb_cursor_put(cursor_, &k, &v, static_cast<unsigned>(flags)));
+  }
+
+  void del() { EX(mdb_cursor_del(cursor_, 0)); }
+
+  void del_nodupdata() { EX(mdb_cursor_del(cursor_, MDB_NODUPDATA)); }
+
+  mdb_size_t count() {
+    mdb_size_t n;
+    EX(mdb_cursor_count(cursor_, &n));
+    return n;
+  }
+
+  MDB_cursor* cursor_;
+};
 
 }  // namespace lmdb
