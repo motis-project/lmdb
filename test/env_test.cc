@@ -1,7 +1,5 @@
 #include "doctest.h"
 
-#include <iostream>
-
 #include "lmdb/lmdb.hpp"
 
 TEST_CASE("env") {
