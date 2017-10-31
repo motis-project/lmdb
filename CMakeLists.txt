@@ -8,7 +8,11 @@ include_directories(include/lmdb)
 
 file(GLOB_RECURSE lmdb-files src/*.c)
 add_library(lmdb STATIC ${lmdb-files})
-target_link_libraries(lmdb ${CMAKE_THREAD_LIBS_INIT})
+if (MSVC)
+	target_link_libraries(lmdb ${CMAKE_THREAD_LIBS_INIT} ntdll)
+else()
+	target_link_libraries(lmdb ${CMAKE_THREAD_LIBS_INIT})
+endif()
 set_property(TARGET lmdb PROPERTY CXX_STANDARD 17)
 
 file(GLOB_RECURSE lmdb-test-files test/*.cc)
