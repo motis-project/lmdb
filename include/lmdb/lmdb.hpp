@@ -171,15 +171,15 @@ struct env final {
 
   ~env() {
     mdb_env_close(env_);
-	env_ = nullptr;
+    env_ = nullptr;
   }
 
   env(env&& e) : env_(e.env_) { e.env_ = nullptr; }
 
   env& operator=(env&& e) {
     env_ = e.env_;
-	e.env_ = nullptr;
-	return *this;
+    e.env_ = nullptr;
+    return *this;
   }
 
   env(env const&) = delete;
@@ -212,21 +212,23 @@ struct txn final {
       EX(mdb_dbi_open(txn, name, static_cast<unsigned>(flags), &dbi_));
     }
 
-	~dbi() { if (env_ != nullptr) { mdb_dbi_close(env_, dbi_); } }
+    ~dbi() {
+      if (env_ != nullptr) {
+        mdb_dbi_close(env_, dbi_);
+      }
+    }
 
-	dbi(dbi&& d) : env_{ d.env_ }, dbi_{ dbi_ } {
-	  d.env_ = nullptr;
-	}
+    dbi(dbi&& d) : env_{d.env_}, dbi_{dbi_} { d.env_ = nullptr; }
 
-	dbi& operator=(dbi&& d) {
-	  env_ = d.env_;
-	  dbi_ = d.dbi_;
-	  d.env_ = nullptr;
-	  return *this;
-	}
+    dbi& operator=(dbi&& d) {
+      env_ = d.env_;
+      dbi_ = d.dbi_;
+      d.env_ = nullptr;
+      return *this;
+    }
 
-	dbi(dbi const&) = delete;
-	dbi& operator=(dbi const&) = delete;
+    dbi(dbi const&) = delete;
+    dbi& operator=(dbi const&) = delete;
 
     MDB_env* env_;
     MDB_dbi dbi_;
@@ -243,19 +245,18 @@ struct txn final {
                      &txn_));
   }
 
-  txn(txn&& t)
-	  : committed_{ t.committed_ }, env_{ t.env_ }, txn_{ t.txn_ } {
+  txn(txn&& t) : committed_{t.committed_}, env_{t.env_}, txn_{t.txn_} {
     t.env_ = nullptr;
-	t.txn_ = nullptr;
+    t.txn_ = nullptr;
   }
 
   txn& operator=(txn&& t) {
     committed_ = t.committed_;
     env_ = t.env_;
-	txn_ = t.txn_;
-	t.env_ = nullptr;
-	t.txn_ = nullptr;
-	return *this;
+    txn_ = t.txn_;
+    t.env_ = nullptr;
+    t.txn_ = nullptr;
+    return *this;
   }
 
   txn(txn const&) = delete;
@@ -341,21 +342,21 @@ struct cursor final {
     EX(mdb_cursor_open(txn.txn_, dbi.dbi_, &cursor_));
   }
 
-  cursor(cursor&& c) : cursor_{ c.cursor_ } {
-	c.cursor_ = nullptr;
-  }
+  cursor(cursor&& c) : cursor_{c.cursor_} { c.cursor_ = nullptr; }
 
   cursor& operator=(cursor&& c) {
-	cursor_ = c.cursor_;
-	c.cursor_ = nullptr;
-	return *this;
+    cursor_ = c.cursor_;
+    c.cursor_ = nullptr;
+    return *this;
   }
 
   cursor(cursor const&) = delete;
   cursor& operator=(cursor const&) = delete;
 
   ~cursor() {
-	if (cursor_) { mdb_cursor_close(cursor_); }
+    if (cursor_) {
+      mdb_cursor_close(cursor_);
+    }
   }
 
   void renew(txn& t) { EX(mdb_cursor_renew(t.txn_, cursor_)); }
