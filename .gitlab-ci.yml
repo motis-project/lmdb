@@ -74,6 +74,9 @@ clang-tidy:
   tags:
     - artful
   script:
+    - export CXX=clang++
+    - export CC=clang
+    - export CXXFLAGS="-stdlib=libc++"
     - mkdir build-clang-tidy
     - cd build-clang-tidy
     - cmake ..
