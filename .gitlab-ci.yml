@@ -40,7 +40,7 @@ msvc-release:
     - windows
   script:
     - set WD=%cd%
-    - call "C:\Program Files (x86)\Microsoft Visual C++ Build Tools\vcbuildtools.bat" amd64
+    - call "C:\Program Files (x86)\Microsoft Visual Studio\2017\BuildTools\VC\Auxiliary\Build\vcvars64.bat"
     - cd %WD%
     - mkdir build-msvc-release
     - cd build-msvc-release
