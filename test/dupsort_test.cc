@@ -28,5 +28,19 @@ TEST_CASE("dupsort") {
     CHECK(c.count() == 2);
     CHECK(e2->first == "dup_key1");
     CHECK(e2->second == "world");
+
+    auto const e2_too = c.get(lmdb::cursor_op::GET_CURRENT);
+    CHECK(e2_too->first == "dup_key1");
+    CHECK(e2_too->second == "world");
+
+    auto const e3 = c.get(lmdb::cursor_op::NEXT);
+    CHECK(!e3);
+
+    std::string s;
+    for (auto el = c.get(lmdb::cursor_op::FIRST); el;
+         el = c.get(lmdb::cursor_op::NEXT)) {
+      s += el->second;
+    }
+    CHECK(s == "helloworld");
   }
 }
