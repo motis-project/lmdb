@@ -8,7 +8,7 @@
 namespace lmdb {
 
 class error_category_impl : public std::error_category {
- public:
+public:
   const char* name() const noexcept override;
   std::string message(int ec) const noexcept override;
 };
