@@ -71,7 +71,7 @@ add_custom_target(lint
   /usr/bin/python
     ${CMAKE_CURRENT_SOURCE_DIR}/tools/run-clang-tidy.py
       -exit-on-error
-      -clang_tidy_binary "clang-tidy-5.0"
+      -clang-tidy-binary clang-tidy-5.0
       -header-filter "^${CMAKE_CURRENT_SOURCE_DIR}/include"
       "^${CMAKE_CURRENT_SOURCE_DIR}/src/"
       "^${CMAKE_CURRENT_SOURCE_DIR}/test/"
