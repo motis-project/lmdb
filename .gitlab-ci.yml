@@ -60,3 +60,12 @@ msvc-debug:
     - cmake -G "NMake Makefiles JOM" -DCMAKE_BUILD_TYPE=Debug ..
     - jom lmdb-test
     - lmdb-test
+
+clang-format:
+  tags:
+    - artful
+  script:
+    - mkdir build-clang-format
+    - cd build-clang-format
+    - cmake ..
+    - make format-check

@@ -56,7 +56,7 @@ add_custom_target(format-check
       -o -name "*.h"
       \)
       -print0
-    | xargs -0 clang-format -i
+    | xargs -0 clang-format-5.0 -i
   COMMAND
     git status --porcelain | xargs -I {} -0 test -z \"{}\"
   WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
