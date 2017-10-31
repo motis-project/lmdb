@@ -174,9 +174,9 @@ struct env final {
     env_ = nullptr;
   }
 
-  env(env&& e) : env_(e.env_) { e.env_ = nullptr; }
+  env(env&& e) noexcept : env_(e.env_) { e.env_ = nullptr; }
 
-  env& operator=(env&& e) {
+  env& operator=(env&& e) noexcept {
     env_ = e.env_;
     e.env_ = nullptr;
     return *this;
@@ -218,9 +218,9 @@ struct txn final {
       }
     }
 
-    dbi(dbi&& d) : env_{d.env_}, dbi_{d.dbi_} { d.env_ = nullptr; }
+    dbi(dbi&& d) noexcept : env_{d.env_}, dbi_{d.dbi_} { d.env_ = nullptr; }
 
-    dbi& operator=(dbi&& d) {
+    dbi& operator=(dbi&& d) noexcept {
       env_ = d.env_;
       dbi_ = d.dbi_;
       d.env_ = nullptr;
@@ -245,12 +245,12 @@ struct txn final {
                      &txn_));
   }
 
-  txn(txn&& t) : committed_{t.committed_}, env_{t.env_}, txn_{t.txn_} {
+  txn(txn&& t) noexcept : committed_{t.committed_}, env_{t.env_}, txn_{t.txn_} {
     t.env_ = nullptr;
     t.txn_ = nullptr;
   }
 
-  txn& operator=(txn&& t) {
+  txn& operator=(txn&& t) noexcept {
     committed_ = t.committed_;
     env_ = t.env_;
     txn_ = t.txn_;
@@ -342,9 +342,9 @@ struct cursor final {
     EX(mdb_cursor_open(txn.txn_, dbi.dbi_, &cursor_));
   }
 
-  cursor(cursor&& c) : cursor_{c.cursor_} { c.cursor_ = nullptr; }
+  cursor(cursor&& c) noexcept : cursor_{c.cursor_} { c.cursor_ = nullptr; }
 
-  cursor& operator=(cursor&& c) {
+  cursor& operator=(cursor&& c) noexcept {
     cursor_ = c.cursor_;
     c.cursor_ = nullptr;
     return *this;
