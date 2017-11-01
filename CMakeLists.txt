@@ -54,7 +54,7 @@ else()
 endif()
 
 file(GLOB_RECURSE lmdb-lib-files lib/*.c)
-set_source_files_properties("${lmdb-lib-files}" PROPERTIES COMPILE_FLAGS /w)
+set_source_files_properties(${lmdb-lib-files} PROPERTIES COMPILE_FLAGS /w)
 file(GLOB_RECURSE lmdb-src-files src/*.cc)
 add_library(lmdb STATIC "${lmdb-lib-files}" "${lmdb-src-files}")
 if (MSVC)
