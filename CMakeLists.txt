@@ -3,6 +3,7 @@ cmake_minimum_required(VERSION 3.9)
 
 if (MSVC)
   add_definitions(/std:c++latest)
+  
 endif()
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
@@ -37,12 +38,22 @@ elseif(NOT MSVC)
     -Wextra \
     -Werror \
   ")
+else()
+  foreach(flags CMAKE_C_FLAGS CMAKE_C_FLAGS_RELEASE CMAKE_C_FLAGS_DEBUG)
+    string(REPLACE "/W3" "" ${flags} "${${flags}}")
+  endforeach()
+    
+  foreach(flags CMAKE_CXX_FLAGS CMAKE_CXX_FLAGS_RELEASE CMAKE_CXX_FLAGS_DEBUG)
+    string(REPLACE "/W3" "" ${flags} "${${flags}}")
+  endforeach()
+  
+  set(lmdb-compile-flags "\
+    /std:c++latest \
+    /W3 \
+  ")
 endif()
 
 file(GLOB_RECURSE lmdb-lib-files lib/*.c)
-if (MSVC)
-  set_source_files_properties(${lmdb-lib-files} PROPERTIES COMPILE_FLAGS /w)
-endif()
 file(GLOB_RECURSE lmdb-src-files src/*.cc)
 add_library(lmdb STATIC "${lmdb-lib-files}" "${lmdb-src-files}")
 if (MSVC)
