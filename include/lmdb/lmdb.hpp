@@ -188,7 +188,7 @@ struct env final {
   env& operator=(env const&) = delete;
 
   void open(char const* path, env_open_flags flags = env_open_flags::NONE,
-            unsigned mode = 0644) {
+            mdb_mode_t mode = 0644) {
     EX(mdb_env_open(env_, path, static_cast<unsigned>(flags), mode));
   }
 
