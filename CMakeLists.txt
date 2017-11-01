@@ -8,8 +8,6 @@ endif()
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-message("cxx flags: " ${CMAKE_CXX_FLAGS})
-
 find_package(Threads)
 
 include_directories(include)
