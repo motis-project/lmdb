@@ -145,25 +145,27 @@ ENUM_FLAGS(put_flags){
     MULTIPLE = 0x80000};
 
 enum class cursor_op {
-  FIRST,
-  FIRST_DUP,
-  GET_BOTH,
-  GET_BOTH_RANGE,
-  GET_CURRENT,
-  GET_MULTIPLE,
-  LAST,
-  LAST_DUP,
-  NEXT,
-  NEXT_DUP,
-  NEXT_MULTIPLE,
-  NEXT_NODUP,
-  PREV,
-  PREV_DUP,
-  PREV_NODUP,
-  SET,
-  SET_KEY,
-  SET_RANGE,
-  PREV_MULTIPLE
+  FIRST,  // go to first entry
+  FIRST_DUP,  // go to first entry of current key (DUPSORT)
+  GET_BOTH,  // go to entry (DUPSORT)
+  GET_BOTH_RANGE,  // go to entry with nearest data (DUPSORT)
+  GET_CURRENT,  // return current entry
+  GET_MULTIPLE,  // return key and up to a page of duplicate values (DUPFIXED)
+  LAST,  // go to last entry
+  LAST_DUP,  // go to last entry of current key (DUPSORT)
+  NEXT,  // go to next entry
+  NEXT_DUP,  // go to next entry of current key (DUPSORT)
+  NEXT_MULTIPLE,  // return key and up to a page of duplicate values of next
+                  // entry (DUPFIXED)
+  NEXT_NODUP,  // go to first entry of next key
+  PREV,  // go to previous entry
+  PREV_DUP,  // go to previous entry of current key (DUPSORT)
+  PREV_NODUP,  // go to last entry of previous key
+  SET,  // go to specified key
+  SET_KEY,  // go to specified key and return key + value
+  SET_RANGE,  // go to first key greater or equal specified key
+  PREV_MULTIPLE  // go to previous page and return key and up to a page of
+                 // duplicate entries (DUPFIXED)
 };
 
 struct env final {
@@ -174,7 +176,7 @@ struct env final {
     env_ = nullptr;
   }
 
-  env(env&& e) noexcept : env_(e.env_) { e.env_ = nullptr; }
+  env(env&& e) noexcept : env_{e.env_} { e.env_ = nullptr; }
 
   env& operator=(env&& e) noexcept {
     env_ = e.env_;
@@ -208,7 +210,7 @@ inline std::string_view from_mdb_val(MDB_val v) {
 struct txn final {
   struct dbi final {
     dbi(MDB_env* env, MDB_txn* txn, char const* name, dbi_flags const flags)
-        : env_(env), dbi_(std::numeric_limits<MDB_dbi>::max()) {
+        : env_{env}, dbi_{std::numeric_limits<MDB_dbi>::max()} {
       EX(mdb_dbi_open(txn, name, static_cast<unsigned>(flags), &dbi_));
     }
 
