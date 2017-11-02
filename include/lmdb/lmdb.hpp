@@ -212,30 +212,18 @@ inline std::string_view from_mdb_val(MDB_val v) {
 
 struct txn final {
   struct dbi final {
-    dbi(MDB_env* env, MDB_txn* txn, char const* name, dbi_flags const flags)
-        : env_{env}, dbi_{std::numeric_limits<MDB_dbi>::max()} {
+    dbi(MDB_txn* txn, char const* name, dbi_flags const flags)
+        : txn_{txn}, dbi_{std::numeric_limits<MDB_dbi>::max()} {
       EX(mdb_dbi_open(txn, name, static_cast<unsigned>(flags), &dbi_));
     }
 
-    ~dbi() {
-      if (env_ != nullptr) {
-        // mdb_dbi_close(env_, dbi_);
-      }
-    }
+    dbi(MDB_txn* txn, MDB_dbi dbi) : txn_{txn}, dbi_{dbi} {}
 
-    dbi(dbi&& d) noexcept : env_{d.env_}, dbi_{d.dbi_} { d.env_ = nullptr; }
+    void close() { mdb_dbi_close(mdb_txn_env(txn_), dbi_); }
+    void clear() { mdb_drop(txn_, dbi_, 0); }
+    void remove() { mdb_drop(txn_, dbi_, 1); }
 
-    dbi& operator=(dbi&& d) noexcept {
-      env_ = d.env_;
-      dbi_ = d.dbi_;
-      d.env_ = nullptr;
-      return *this;
-    }
-
-    dbi(dbi const&) = delete;
-    dbi& operator=(dbi const&) = delete;
-
-    MDB_env* env_;
+    MDB_txn* txn_;
     MDB_dbi dbi_;
   };
 
@@ -281,12 +269,10 @@ struct txn final {
   }
 
   dbi dbi_open(char const* name = nullptr, dbi_flags flags = dbi_flags::NONE) {
-    return {mdb_txn_env(txn_), txn_, name, flags};
+    return {txn_, name, flags};
   }
 
-  dbi dbi_open(dbi_flags flags) {
-    return {mdb_txn_env(txn_), txn_, nullptr, flags};
-  }
+  dbi dbi_open(dbi_flags flags) { return {txn_, nullptr, flags}; }
 
   void put(dbi& dbi, std::string_view key, std::string_view value,
            put_flags const flags = put_flags::NONE) {
@@ -392,6 +378,10 @@ struct cursor final {
     mdb_size_t n;
     EX(mdb_cursor_count(cursor_, &n));
     return n;
+  }
+
+  txn::dbi get_dbi() {
+    return {mdb_cursor_txn(cursor_), mdb_cursor_dbi(cursor_)};
   }
 
   MDB_cursor* cursor_;
