@@ -196,6 +196,9 @@ struct env final {
   void set_mapsize(mdb_size_t size) { EX(mdb_env_set_mapsize(env_, size)); }
   void set_maxdbs(MDB_dbi dbs) { EX(mdb_env_set_maxdbs(env_, dbs)); }
 
+  void sync() { EX(mdb_env_sync(env_, 0)); }
+  void force_sync() { EX(mdb_env_sync(env_, 1)); }
+
   MDB_env* env_;
 };
 
@@ -216,7 +219,7 @@ struct txn final {
 
     ~dbi() {
       if (env_ != nullptr) {
-        mdb_dbi_close(env_, dbi_);
+        // mdb_dbi_close(env_, dbi_);
       }
     }
 
@@ -237,26 +240,23 @@ struct txn final {
   };
 
   explicit txn(env& env, txn_flags const flags = txn_flags::NONE)
-      : committed_{false}, env_{env.env_}, txn_{nullptr} {
+      : committed_{false}, txn_{nullptr} {
     EX(mdb_txn_begin(env.env_, nullptr, static_cast<unsigned>(flags), &txn_));
   }
 
   txn(env& env, txn& parent, txn_flags const flags)
-      : committed_{false}, env_{env.env_}, txn_{nullptr} {
+      : committed_{false}, txn_{nullptr} {
     EX(mdb_txn_begin(env.env_, parent.txn_, static_cast<unsigned>(flags),
                      &txn_));
   }
 
-  txn(txn&& t) noexcept : committed_{t.committed_}, env_{t.env_}, txn_{t.txn_} {
-    t.env_ = nullptr;
+  txn(txn&& t) noexcept : committed_{t.committed_}, txn_{t.txn_} {
     t.txn_ = nullptr;
   }
 
   txn& operator=(txn&& t) noexcept {
     committed_ = t.committed_;
-    env_ = t.env_;
     txn_ = t.txn_;
-    t.env_ = nullptr;
     t.txn_ = nullptr;
     return *this;
   }
@@ -281,10 +281,12 @@ struct txn final {
   }
 
   dbi dbi_open(char const* name = nullptr, dbi_flags flags = dbi_flags::NONE) {
-    return {env_, txn_, name, flags};
+    return {mdb_txn_env(txn_), txn_, name, flags};
   }
 
-  dbi dbi_open(dbi_flags flags) { return {env_, txn_, nullptr, flags}; }
+  dbi dbi_open(dbi_flags flags) {
+    return {mdb_txn_env(txn_), txn_, nullptr, flags};
+  }
 
   void put(dbi& dbi, std::string_view key, std::string_view value,
            put_flags const flags = put_flags::NONE) {
@@ -335,7 +337,6 @@ struct txn final {
   }
 
   bool committed_;
-  MDB_env* env_;
   MDB_txn* txn_;
 };
 
