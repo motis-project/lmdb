@@ -3,7 +3,6 @@ cmake_minimum_required(VERSION 3.9)
 
 if (MSVC)
   add_definitions(/std:c++latest)
-  
 endif()
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
