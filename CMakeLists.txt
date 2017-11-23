@@ -5,9 +5,6 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 find_package(Threads)
 
-include_directories(include)
-include_directories(SYSTEM lib)
-
 if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
   set(lmdb-compile-flags "\
     -fno-strict-aliasing \
@@ -57,6 +54,8 @@ if (MSVC)
 else()
   target_link_libraries(lmdb ${CMAKE_THREAD_LIBS_INIT})
 endif()
+target_include_directories(lmdb PUBLIC include)
+target_include_directories(lmdb SYSTEM PUBLIC lib)
 set_property(TARGET lmdb PROPERTY CXX_STANDARD 17)
 
 file(GLOB_RECURSE lmdb-test-files test/*.cc)
@@ -65,7 +64,7 @@ target_link_libraries(lmdb-test lmdb)
 set_property(TARGET lmdb-test PROPERTY CXX_STANDARD 17)
 set_target_properties(lmdb-test PROPERTIES COMPILE_FLAGS "${lmdb-compile-flags}")
 
-add_custom_target(format-check
+add_custom_target(lmdb-format-check
     find
         ${CMAKE_CURRENT_SOURCE_DIR}/include
         ${CMAKE_CURRENT_SOURCE_DIR}/src
@@ -87,7 +86,7 @@ add_custom_target(format-check
   VERBATIM
 )
 
-add_custom_target(lint
+add_custom_target(lmdb-lint
   /usr/bin/python
     ${CMAKE_CURRENT_SOURCE_DIR}/tools/run-clang-tidy.py
       -exit-on-error
@@ -97,4 +96,4 @@ add_custom_target(lint
   COMMENT "Running clang-tidy"
   VERBATIM
 )
-add_dependencies(lint lmdb lmdb-test)
+add_dependencies(lmdb-lint lmdb lmdb-test)
