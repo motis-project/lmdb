@@ -351,8 +351,8 @@ struct cursor final {
   void renew(txn& t) { EX(mdb_cursor_renew(t.txn_, cursor_)); }
 
   std::optional<std::pair<std::string_view, std::string_view>> get(
-      cursor_op const op) {
-    auto k = MDB_val{};
+      cursor_op const op, std::string_view key = {}) {
+    auto k = to_mdb_val(key);
     auto v = MDB_val{};
     switch (auto const ec =
                 mdb_cursor_get(cursor_, &k, &v, static_cast<MDB_cursor_op>(op));
