@@ -6,10 +6,12 @@
 
 TEST_CASE("dupsort") {
   auto env = lmdb::env{};
+  env.set_maxdbs(8);
   env.open("./");
 
   auto txn = lmdb::txn{env};
-  auto db = txn.dbi_open(lmdb::dbi_flags::DUPSORT);
+  auto db = txn.dbi_open("dupsort",
+                         lmdb::dbi_flags::DUPSORT | lmdb::dbi_flags::CREATE);
 
   SUBCASE("put 2x same key") {
     txn.put(db, "dup_key1", "hello");
