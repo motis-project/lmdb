@@ -68,7 +68,7 @@ clang-format:
     - mkdir build-clang-format
     - cd build-clang-format
     - cmake ..
-    - make format-check
+    - make lmdb-format-check
 
 clang-tidy:
   tags:
@@ -80,4 +80,4 @@ clang-tidy:
     - mkdir build-clang-tidy
     - cd build-clang-tidy
     - cmake ..
-    - make -j12 lint
+    - make -j12 lmdb-lint
