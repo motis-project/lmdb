@@ -4,7 +4,7 @@
 
 TEST_CASE("txn") {
   auto env = lmdb::env{};
-  env.open("./");
+  env.open("./TXN", lmdb::env_open_flags::NOSUBDIR);
 
   auto txn = lmdb::txn{env};
   auto db = txn.dbi_open();

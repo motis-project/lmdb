@@ -156,7 +156,7 @@ enum class cursor_op {
   NEXT,  // go to next entry
   NEXT_DUP,  // go to next entry of current key (DUPSORT)
   NEXT_MULTIPLE,  // return key and up to a page of duplicate values of next
-                  // entry (DUPFIXED)
+  // entry (DUPFIXED)
   NEXT_NODUP,  // go to first entry of next key
   PREV,  // go to previous entry
   PREV_DUP,  // go to previous entry of current key (DUPSORT)
@@ -165,7 +165,7 @@ enum class cursor_op {
   SET_KEY,  // go to specified key and return key + value
   SET_RANGE,  // go to first key greater or equal specified key
   PREV_MULTIPLE  // go to previous page and return key and up to a page of
-                 // duplicate entries (DUPFIXED)
+  // duplicate entries (DUPFIXED)
 };
 
 struct env final {
@@ -202,12 +202,31 @@ struct env final {
   MDB_env* env_;
 };
 
+template <typename T>
+inline std::enable_if_t<std::is_integral_v<T>, MDB_val> to_mdb_val(T const& s) {
+  static_assert(sizeof(s) == sizeof(size_t) || sizeof(s) == sizeof(unsigned));
+  return MDB_val{sizeof(T), const_cast<void*>(  // NOLINT
+                                reinterpret_cast<void const*>(&s))};
+}
+
+template <int N>
+inline MDB_val to_mdb_val(char const (&s)[N]) {
+  return MDB_val{
+      N, const_cast<void*>(reinterpret_cast<void const*>(s))};  // NOLINT
+}
+
 inline MDB_val to_mdb_val(std::string_view s) {
   return MDB_val{s.size(), const_cast<char*>(s.data())};  // NOLINT
 }
 
 inline std::string_view from_mdb_val(MDB_val v) {
   return {static_cast<char const*>(v.mv_data), v.mv_size};
+}
+
+template <typename T = int>
+inline T as_int(std::string_view s) {
+  assert(s.length() >= sizeof(T));
+  return *reinterpret_cast<T const*>(s.data());
 }
 
 struct txn final {
@@ -274,14 +293,16 @@ struct txn final {
 
   dbi dbi_open(dbi_flags flags) { return {txn_, nullptr, flags}; }
 
-  void put(dbi& dbi, std::string_view key, std::string_view value,
+  template <typename T>
+  void put(dbi& dbi, T key, std::string_view value,
            put_flags const flags = put_flags::NONE) {
     auto k = to_mdb_val(key);
     auto v = to_mdb_val(value);
     EX(mdb_put(txn_, dbi.dbi_, &k, &v, static_cast<unsigned>(flags)));
   }
 
-  void put_nodupdata(dbi& dbi, std::string_view key, std::string_view value,
+  template <typename T>
+  void put_nodupdata(dbi& dbi, T key, std::string_view value,
                      put_flags const flags = put_flags::NONE) {
     auto k = to_mdb_val(key);
     auto v = to_mdb_val(value);
@@ -293,26 +314,31 @@ struct txn final {
     }
   }
 
-  std::optional<std::string_view> get(dbi& dbi, std::string_view key) {
+  template <typename T>
+  std::optional<std::string_view> get(dbi& dbi, T key) {
     auto k = to_mdb_val(key);
     auto v = MDB_val{0, nullptr};
-    switch (auto const ec = mdb_get(txn_, dbi.dbi_, &k, &v); ec) {
+    auto const ec = mdb_get(txn_, dbi.dbi_, &k, &v);
+    switch (ec) {
       case MDB_SUCCESS: return from_mdb_val(v);
       case MDB_NOTFOUND: return {};
       default: throw std::system_error{error::make_error_code(ec)};
     }
   }
 
-  bool del(dbi& dbi, std::string_view key) {
+  template <typename T>
+  bool del(dbi& dbi, T key) {
     auto k = to_mdb_val(key);
-    switch (auto const ec = mdb_del(txn_, dbi.dbi_, &k, nullptr); ec) {
+    auto const ec = mdb_del(txn_, dbi.dbi_, &k, nullptr);
+    switch (ec) {
       case MDB_SUCCESS: return true;
       case MDB_NOTFOUND: return false;
       default: throw std::system_error{error::make_error_code(ec)};
     }
   }
 
-  bool del_dupdata(dbi& dbi, std::string_view key, std::string_view value) {
+  template <typename T>
+  bool del_dupdata(dbi& dbi, T key, std::string_view value) {
     auto k = to_mdb_val(key);
     auto v = to_mdb_val(value);
     switch (auto const ec = mdb_del(txn_, dbi.dbi_, &k, &v); ec) {
@@ -327,6 +353,12 @@ struct txn final {
 };
 
 struct cursor final {
+  using opt_entry =
+      std::optional<std::pair<std::string_view, std::string_view>>;
+
+  template <typename T>
+  using opt_int_entry = std::optional<std::pair<T, std::string_view>>;
+
   cursor(txn& txn, txn::dbi& dbi) : cursor_{nullptr} {
     EX(mdb_cursor_open(txn.txn_, dbi.dbi_, &cursor_));
   }
@@ -345,26 +377,54 @@ struct cursor final {
   ~cursor() {
     if (cursor_) {
       mdb_cursor_close(cursor_);
+      cursor_ = nullptr;
     }
   }
 
+  void commit() { cursor_ = nullptr; }
+
   void renew(txn& t) { EX(mdb_cursor_renew(t.txn_, cursor_)); }
 
-  std::optional<std::pair<std::string_view, std::string_view>> get(
-      cursor_op const op, std::string_view key = {}) {
+  template <int N>
+  opt_entry get(cursor_op const op, char const (&s)[N]) {
+    auto k = to_mdb_val<N>(s);
+    return get(op, &k);
+  }
+
+  opt_entry get(cursor_op const op, std::string_view key) {
     auto k = to_mdb_val(key);
+    return get(op, &k);
+  }
+
+  opt_entry get(cursor_op const op) {
+    auto k = MDB_val{};
+    return get(op, &k);
+  }
+
+  template <typename T>
+  opt_int_entry<T> get(cursor_op const op, T const& key) {
+    auto k = to_mdb_val(key);
+    auto r = get(op, &k);
+    return r ? std::make_optional(
+                   std::make_pair(as_int<T>(r->first), r->second))
+             : std::nullopt;
+  }
+
+  opt_entry get(cursor_op const op, MDB_val* k) {
     auto v = MDB_val{};
     switch (auto const ec =
-                mdb_cursor_get(cursor_, &k, &v, static_cast<MDB_cursor_op>(op));
+                mdb_cursor_get(cursor_, k, &v, static_cast<MDB_cursor_op>(op));
             ec) {
-      case MDB_SUCCESS: return std::make_pair(from_mdb_val(k), from_mdb_val(v));
+      case MDB_SUCCESS:
+        return std::make_pair(from_mdb_val(*k), from_mdb_val(v));
       case MDB_NOTFOUND: return {};
       default: throw std::system_error{error::make_error_code(ec)};
     }
   }
 
-  void put(std::string_view key, std::string_view value,
-           put_flags const flags) {
+  template <typename T>
+  void put(T key, std::string_view value,
+           put_flags const flags = put_flags::NONE) {
     auto k = to_mdb_val(key);
     auto v = to_mdb_val(value);
     EX(mdb_cursor_put(cursor_, &k, &v, static_cast<unsigned>(flags)));

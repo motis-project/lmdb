@@ -6,7 +6,7 @@
 
 TEST_CASE("iteration") {
   auto env = lmdb::env{};
-  env.open("./");
+  env.open("./ITERATION.mdb", lmdb::env_open_flags::NOSUBDIR);
 
   auto txn = lmdb::txn{env};
   auto db = txn.dbi_open(lmdb::dbi_flags::DUPSORT);
