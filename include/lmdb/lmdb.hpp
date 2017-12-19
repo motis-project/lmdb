@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cassert>
 #include <limits>
 #include <optional>
 #include <string_view>
@@ -402,7 +403,7 @@ struct cursor final {
   }
 
   template <typename T>
-  opt_int_entry<T> get(cursor_op const op, T const& key) {
+  opt_int_entry<T> get(cursor_op op, T const& key) {
     auto k = to_mdb_val(key);
     auto r = get(op, &k);
     return r ? std::make_optional(
