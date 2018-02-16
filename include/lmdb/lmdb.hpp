@@ -227,7 +227,9 @@ inline std::string_view from_mdb_val(MDB_val v) {
 template <typename T = int>
 inline T as_int(std::string_view s) {
   assert(s.length() >= sizeof(T));
-  return *reinterpret_cast<T const*>(s.data());
+  T t;
+  std::memcpy(&t, s.data(), sizeof(t));
+  return t;
 }
 
 struct txn final {
