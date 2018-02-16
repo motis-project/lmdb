@@ -305,7 +305,7 @@ struct txn final {
   }
 
   template <typename T>
-  void put_nodupdata(dbi& dbi, T key, std::string_view value,
+  bool put_nodupdata(dbi& dbi, T key, std::string_view value,
                      put_flags const flags = put_flags::NONE) {
     auto k = to_mdb_val(key);
     auto v = to_mdb_val(value);
@@ -314,6 +314,8 @@ struct txn final {
                     static_cast<unsigned>(flags | put_flags::NODUPDATA));
         ec != MDB_KEYEXIST && ec != MDB_SUCCESS) {
       throw std::system_error{error::make_error_code(ec)};
+    } else {
+      return ec != MDB_KEYEXIST;
     }
   }
 
