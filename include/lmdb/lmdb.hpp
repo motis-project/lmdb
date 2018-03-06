@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cassert>
+#include <cstring>
 #include <limits>
 #include <optional>
 #include <string_view>
