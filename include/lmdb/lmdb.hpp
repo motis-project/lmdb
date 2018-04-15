@@ -397,6 +397,10 @@ struct cursor final {
     return get(op, &k);
   }
 
+  opt_entry get(cursor_op const op, std::string const& key) {
+    return get(op, key.operator std::string_view());
+  }
+
   opt_entry get(cursor_op const op, std::string_view key) {
     auto k = to_mdb_val(key);
     return get(op, &k);
