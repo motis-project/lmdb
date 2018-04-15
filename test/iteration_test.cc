@@ -22,12 +22,37 @@ TEST_CASE("iteration") {
 
   std::string keys;
   std::string values;
-  for (auto el = c.get(lmdb::cursor_op::SET_RANGE, "key1"); el->first < "key6";
-       el = c.get(lmdb::cursor_op::NEXT)) {
+  for (auto el = c.get(lmdb::cursor_op::SET_RANGE, "key1");
+       el && el->first < "key6"; el = c.get(lmdb::cursor_op::NEXT)) {
     keys += el->first;
     values += el->second;
   }
 
   CHECK(keys == "key2key3key3key5");
   CHECK(values == "val2val3aval3bval5");
+}
+
+TEST_CASE("iteration_end") {
+  auto env = lmdb::env{};
+  env.open("./ITERATION_END.mdb", lmdb::env_open_flags::NOSUBDIR);
+
+  auto txn = lmdb::txn{env};
+  auto db = txn.dbi_open();
+
+  txn.put(db, "key0", "val0");
+  txn.put(db, "key2", "val2");
+  txn.put(db, "key3", "val3");
+
+  auto c = lmdb::cursor{txn, db};
+
+  std::string keys;
+  std::string values;
+  for (auto el = c.get(lmdb::cursor_op::SET_RANGE, "key1");
+       el && el->first < "key6"; el = c.get(lmdb::cursor_op::NEXT)) {
+    keys += el->first;
+    values += el->second;
+  }
+
+  CHECK(keys == "key2key3");
+  CHECK(values == "val2val3");
 }

@@ -423,7 +423,7 @@ struct cursor final {
             ec) {
       case MDB_SUCCESS:
         return std::make_pair(from_mdb_val(*k), from_mdb_val(v));
-      case MDB_NOTFOUND: return {};
+      case MDB_NOTFOUND: return std::nullopt;
       default: throw std::system_error{error::make_error_code(ec)};
     }
   }
