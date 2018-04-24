@@ -406,6 +406,16 @@ struct cursor final {
     return get(op, &k);
   }
 
+  template <typename T>
+  std::enable_if_t<std::is_integral_v<T>, opt_int_entry<T>> get(
+      cursor_op const op) {
+    auto k = MDB_val{0, nullptr};
+    auto r = get(op, &k);
+    return r ? std::make_optional(
+                   std::make_pair(as_int<std::decay_t<T>>(r->first), r->second))
+             : std::nullopt;
+  }
+
   opt_entry get(cursor_op const op) {
     auto k = MDB_val{};
     return get(op, &k);
