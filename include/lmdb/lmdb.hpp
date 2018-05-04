@@ -242,7 +242,7 @@ struct txn final {
     dbi(MDB_txn* txn, MDB_dbi dbi) : txn_{txn}, dbi_{dbi} {}
 
     void close() { mdb_dbi_close(mdb_txn_env(txn_), dbi_); }
-    void clear() { mdb_drop(txn_, dbi_, 0); }
+    void clear() { EX(mdb_drop(txn_, dbi_, 0)); }
     void remove() { mdb_drop(txn_, dbi_, 1); }
 
     MDB_txn* txn_;
