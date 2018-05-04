@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cassert>
+#include <cstring>
 #include <limits>
 #include <optional>
 #include <string_view>
@@ -396,9 +397,23 @@ struct cursor final {
     return get(op, &k);
   }
 
+  opt_entry get(cursor_op const op, std::string const& key) {
+    return get(op, key.operator std::string_view());
+  }
+
   opt_entry get(cursor_op const op, std::string_view key) {
     auto k = to_mdb_val(key);
     return get(op, &k);
+  }
+
+  template <typename T>
+  std::enable_if_t<std::is_integral_v<T>, opt_int_entry<T>> get(
+      cursor_op const op) {
+    auto k = MDB_val{0, nullptr};
+    auto r = get(op, &k);
+    return r ? std::make_optional(
+                   std::make_pair(as_int<std::decay_t<T>>(r->first), r->second))
+             : std::nullopt;
   }
 
   opt_entry get(cursor_op const op) {
@@ -422,7 +437,7 @@ struct cursor final {
             ec) {
       case MDB_SUCCESS:
         return std::make_pair(from_mdb_val(*k), from_mdb_val(v));
-      case MDB_NOTFOUND: return {};
+      case MDB_NOTFOUND: return std::nullopt;
       default: throw std::system_error{error::make_error_code(ec)};
     }
   }
