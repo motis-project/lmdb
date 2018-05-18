@@ -192,6 +192,7 @@ struct env final {
   void open(char const* path, env_open_flags flags = env_open_flags::NONE,
             mdb_mode_t mode = 0644) {
     EX(mdb_env_open(env_, path, static_cast<unsigned>(flags), mode));
+    is_open_ = true;
   }
 
   void set_maxreaders(unsigned int n) { EX(mdb_env_set_maxreaders(env_, n)); }
@@ -201,7 +202,10 @@ struct env final {
   void sync() { EX(mdb_env_sync(env_, 0)); }
   void force_sync() { EX(mdb_env_sync(env_, 1)); }
 
+  bool is_open() const { return is_open_; }
+
   MDB_env* env_;
+  bool is_open_ = false;
 };
 
 template <typename T>
