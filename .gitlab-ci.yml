@@ -63,7 +63,7 @@ msvc-debug:
 
 clang-format:
   tags:
-    - artful
+    - bionic
   script:
     - mkdir build-clang-format
     - cd build-clang-format
@@ -72,7 +72,7 @@ clang-format:
 
 clang-tidy:
   tags:
-    - artful
+    - bionic
   script:
     - export CXX=clang++
     - export CC=clang
