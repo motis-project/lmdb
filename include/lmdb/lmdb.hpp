@@ -385,7 +385,7 @@ struct cursor final {
   cursor& operator=(cursor const&) = delete;
 
   ~cursor() {
-    if (cursor_) {
+    if (cursor_ != nullptr) {
       mdb_cursor_close(cursor_);
       cursor_ = nullptr;
     }
