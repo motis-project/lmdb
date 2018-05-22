@@ -7,12 +7,12 @@
                  X static_cast<std::underlying_type_t<T>>(rhs)); \
   }
 
-#define ENUM_FLAGS(T)                                       \
-  enum class T : uint32_t;                                  \
-  inline T operator~(T t) {                                 \
-    return T(~static_cast<std::underlying_type_t<(T)>>(t)); \
-  }                                                         \
-  ENUM_FLAG_OPERATOR(T, |)                                  \
-  ENUM_FLAG_OPERATOR(T, ^)                                  \
-  ENUM_FLAG_OPERATOR(T, &)                                  \
+#define ENUM_FLAGS(T)                                     \
+  enum class T : uint32_t;                                \
+  inline T operator~(T t) {                               \
+    return T(~static_cast<std::underlying_type_t<T>>(t)); \
+  }                                                       \
+  ENUM_FLAG_OPERATOR(T, |)                                \
+  ENUM_FLAG_OPERATOR(T, ^)                                \
+  ENUM_FLAG_OPERATOR(T, &)                                \
   enum class T : uint32_t
