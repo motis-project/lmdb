@@ -78,7 +78,7 @@ add_custom_target(lmdb-format-check
       -o -name "*.hpp"
       \)
       -print0
-    | xargs -0 clang-format-5.0 -i
+    | xargs -0 clang-format-6.0 -i
   COMMAND
     git status --porcelain | xargs -I {} -0 test -z \"{}\"
   WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
