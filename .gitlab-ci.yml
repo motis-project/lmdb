@@ -74,9 +74,8 @@ clang-tidy:
   tags:
     - bionic
   script:
-    - export CXX=clang++
-    - export CC=clang
-    - export CXXFLAGS="-stdlib=libc++"
+    - export CXX=clang++-6.0
+    - export CC=clang-6.0
     - mkdir build-clang-tidy
     - cd build-clang-tidy
     - cmake ..
