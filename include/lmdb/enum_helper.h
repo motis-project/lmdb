@@ -8,7 +8,7 @@
   }
 
 #define ENUM_FLAGS(T)                                       \
-  enum class T;                                             \
+  enum class T : uint32_t;                                  \
   inline T operator~(T t) {                                 \
     return T(~static_cast<std::underlying_type_t<(T)>>(t)); \
   }                                                         \
