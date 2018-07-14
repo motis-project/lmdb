@@ -199,6 +199,12 @@ struct env final {
   void set_mapsize(mdb_size_t size) { EX(mdb_env_set_mapsize(env_, size)); }
   void set_maxdbs(MDB_dbi dbs) { EX(mdb_env_set_maxdbs(env_, dbs)); }
 
+  MDB_stat stat() {
+    MDB_stat stat;
+    EX(mdb_env_stat(env_, &stat));
+    return stat;
+  }
+
   void sync() { EX(mdb_env_sync(env_, 0)); }
   void force_sync() { EX(mdb_env_sync(env_, 1)); }
 
@@ -245,6 +251,12 @@ struct txn final {
     }
 
     dbi(MDB_txn* txn, MDB_dbi dbi) : txn_{txn}, dbi_{dbi} {}
+
+    MDB_stat stat() {
+      MDB_stat stat;
+      EX(mdb_stat(txn_, dbi_, &stat));
+      return stat;
+    }
 
     void close() { mdb_dbi_close(mdb_txn_env(txn_), dbi_); }
     void clear() { EX(mdb_drop(txn_, dbi_, 0)); }
