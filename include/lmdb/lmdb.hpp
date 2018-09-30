@@ -403,6 +403,8 @@ struct cursor final {
     }
   }
 
+  void reset() { cursor_ = nullptr; }
+
   void commit() { cursor_ = nullptr; }
 
   void renew(txn& t) { EX(mdb_cursor_renew(t.txn_, cursor_)); }
