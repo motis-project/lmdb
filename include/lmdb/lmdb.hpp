@@ -199,6 +199,12 @@ struct env final {
   void set_mapsize(mdb_size_t size) { EX(mdb_env_set_mapsize(env_, size)); }
   void set_maxdbs(MDB_dbi dbs) { EX(mdb_env_set_maxdbs(env_, dbs)); }
 
+  env_open_flags get_flags() {
+    unsigned int flags;
+    EX(mdb_env_get_flags(env_, &flags));
+    return env_open_flags{flags};
+  }
+
   MDB_stat stat() {
     MDB_stat stat;
     EX(mdb_env_stat(env_, &stat));
