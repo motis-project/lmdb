@@ -11,12 +11,14 @@
 #include "lmdb/enum_helper.h"
 #include "lmdb/error.h"
 
-#define EX(EXPR)                                         \
-  if (auto const ec = (EXPR); ec != MDB_SUCCESS) {       \
-    throw std::system_error{error::make_error_code(ec)}; \
-  }
-
 namespace lmdb {
+
+template <typename Ec>
+void ex(Ec&& ec) {
+  if (ec != MDB_SUCCESS) {
+    throw std::system_error{error::make_error_code(ec)};
+  }
+}
 
 ENUM_FLAGS(env_open_flags){
     NONE = 0x0,
@@ -171,7 +173,7 @@ enum class cursor_op {
 };
 
 struct env final {
-  env() : env_{nullptr} { EX(mdb_env_create(&env_)); }
+  env() : env_{nullptr} { ex(mdb_env_create(&env_)); }
 
   ~env() {
     mdb_env_close(env_);
@@ -191,28 +193,28 @@ struct env final {
 
   void open(char const* path, env_open_flags flags = env_open_flags::NONE,
             mdb_mode_t mode = 0644) {
-    EX(mdb_env_open(env_, path, static_cast<unsigned>(flags), mode));
+    ex(mdb_env_open(env_, path, static_cast<unsigned>(flags), mode));
     is_open_ = true;
   }
 
-  void set_maxreaders(unsigned int n) { EX(mdb_env_set_maxreaders(env_, n)); }
-  void set_mapsize(mdb_size_t size) { EX(mdb_env_set_mapsize(env_, size)); }
-  void set_maxdbs(MDB_dbi dbs) { EX(mdb_env_set_maxdbs(env_, dbs)); }
+  void set_maxreaders(unsigned int n) { ex(mdb_env_set_maxreaders(env_, n)); }
+  void set_mapsize(mdb_size_t size) { ex(mdb_env_set_mapsize(env_, size)); }
+  void set_maxdbs(MDB_dbi dbs) { ex(mdb_env_set_maxdbs(env_, dbs)); }
 
   env_open_flags get_flags() {
     unsigned int flags;
-    EX(mdb_env_get_flags(env_, &flags));
+    ex(mdb_env_get_flags(env_, &flags));
     return env_open_flags{flags};
   }
 
   MDB_stat stat() {
     MDB_stat stat;
-    EX(mdb_env_stat(env_, &stat));
+    ex(mdb_env_stat(env_, &stat));
     return stat;
   }
 
-  void sync() { EX(mdb_env_sync(env_, 0)); }
-  void force_sync() { EX(mdb_env_sync(env_, 1)); }
+  void sync() { ex(mdb_env_sync(env_, 0)); }
+  void force_sync() { ex(mdb_env_sync(env_, 1)); }
 
   bool is_open() const { return is_open_; }
 
@@ -253,19 +255,19 @@ struct txn final {
   struct dbi final {
     dbi(MDB_txn* txn, char const* name, dbi_flags const flags)
         : txn_{txn}, dbi_{std::numeric_limits<MDB_dbi>::max()} {
-      EX(mdb_dbi_open(txn, name, static_cast<unsigned>(flags), &dbi_));
+      ex(mdb_dbi_open(txn, name, static_cast<unsigned>(flags), &dbi_));
     }
 
     dbi(MDB_txn* txn, MDB_dbi dbi) : txn_{txn}, dbi_{dbi} {}
 
     MDB_stat stat() {
       MDB_stat stat;
-      EX(mdb_stat(txn_, dbi_, &stat));
+      ex(mdb_stat(txn_, dbi_, &stat));
       return stat;
     }
 
     void close() { mdb_dbi_close(mdb_txn_env(txn_), dbi_); }
-    void clear() { EX(mdb_drop(txn_, dbi_, 0)); }
+    void clear() { ex(mdb_drop(txn_, dbi_, 0)); }
     void remove() { mdb_drop(txn_, dbi_, 1); }
 
     MDB_txn* txn_;
@@ -274,12 +276,12 @@ struct txn final {
 
   explicit txn(env& env, txn_flags const flags = txn_flags::NONE)
       : committed_{false}, txn_{nullptr} {
-    EX(mdb_txn_begin(env.env_, nullptr, static_cast<unsigned>(flags), &txn_));
+    ex(mdb_txn_begin(env.env_, nullptr, static_cast<unsigned>(flags), &txn_));
   }
 
   txn(env& env, txn& parent, txn_flags const flags)
       : committed_{false}, txn_{nullptr} {
-    EX(mdb_txn_begin(env.env_, parent.txn_, static_cast<unsigned>(flags),
+    ex(mdb_txn_begin(env.env_, parent.txn_, static_cast<unsigned>(flags),
                      &txn_));
   }
 
@@ -310,7 +312,7 @@ struct txn final {
 
   void clear() {
     mdb_txn_reset(txn_);
-    EX(mdb_txn_renew(txn_));
+    ex(mdb_txn_renew(txn_));
   }
 
   dbi dbi_open(char const* name = nullptr, dbi_flags flags = dbi_flags::NONE) {
@@ -324,7 +326,7 @@ struct txn final {
            put_flags const flags = put_flags::NONE) {
     auto k = to_mdb_val(key);
     auto v = to_mdb_val(value);
-    EX(mdb_put(txn_, dbi.dbi_, &k, &v, static_cast<unsigned>(flags)));
+    ex(mdb_put(txn_, dbi.dbi_, &k, &v, static_cast<unsigned>(flags)));
   }
 
   template <typename T>
@@ -388,7 +390,7 @@ struct cursor final {
   using opt_int_entry = std::optional<std::pair<T, std::string_view>>;
 
   cursor(txn& txn, txn::dbi& dbi) : cursor_{nullptr} {
-    EX(mdb_cursor_open(txn.txn_, dbi.dbi_, &cursor_));
+    ex(mdb_cursor_open(txn.txn_, dbi.dbi_, &cursor_));
   }
 
   cursor(cursor&& c) noexcept : cursor_{c.cursor_} { c.cursor_ = nullptr; }
@@ -413,7 +415,7 @@ struct cursor final {
 
   void commit() { cursor_ = nullptr; }
 
-  void renew(txn& t) { EX(mdb_cursor_renew(t.txn_, cursor_)); }
+  void renew(txn& t) { ex(mdb_cursor_renew(t.txn_, cursor_)); }
 
   template <int N>
   opt_entry get(cursor_op const op, char const (&s)[N]) {
@@ -471,16 +473,16 @@ struct cursor final {
            put_flags const flags = put_flags::NONE) {
     auto k = to_mdb_val(key);
     auto v = to_mdb_val(value);
-    EX(mdb_cursor_put(cursor_, &k, &v, static_cast<unsigned>(flags)));
+    ex(mdb_cursor_put(cursor_, &k, &v, static_cast<unsigned>(flags)));
   }
 
-  void del() { EX(mdb_cursor_del(cursor_, 0)); }
+  void del() { ex(mdb_cursor_del(cursor_, 0)); }
 
-  void del_nodupdata() { EX(mdb_cursor_del(cursor_, MDB_NODUPDATA)); }
+  void del_nodupdata() { ex(mdb_cursor_del(cursor_, MDB_NODUPDATA)); }
 
   mdb_size_t count() {
     mdb_size_t n;
-    EX(mdb_cursor_count(cursor_, &n));
+    ex(mdb_cursor_count(cursor_, &n));
     return n;
   }
 
