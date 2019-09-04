@@ -6,8 +6,8 @@ gcc-release:
     - export CC=gcc-7
     - mkdir -p build-gcc-7-release
     - cd build-gcc-7-release
-    - cmake -DCMAKE_BUILD_TYPE=Release ..
-    - make -j12 lmdb-test
+    - cmake -GNinja -DCMAKE_BUILD_TYPE=Release ..
+    - ninja lmdb-test
     - ./lmdb-test
 
 clang-debug-asan:
@@ -19,8 +19,8 @@ clang-debug-asan:
     - export CXXFLAGS="-fsanitize=address -fno-omit-frame-pointer"
     - mkdir -p build-clang-5-debug-asan
     - cd build-clang-5-debug-asan
-    - cmake -DCMAKE_BUILD_TYPE=Debug ..
-    - make -j12 lmdb-test
+    - cmake -GNinja -DCMAKE_BUILD_TYPE=Debug ..
+    - ninja lmdb-test
     - ./lmdb-test
 
 gcc-valgrind:
@@ -31,8 +31,8 @@ gcc-valgrind:
     - export CC=gcc-7
     - mkdir -p gcc-7-valgrind
     - cd gcc-7-valgrind
-    - cmake -DCMAKE_BUILD_TYPE=Debug ..
-    - make -j12 lmdb-test
+    - cmake -GNinja -DCMAKE_BUILD_TYPE=Debug ..
+    - ninja lmdb-test
     - valgrind --leak-check=full --show-reachable=yes --gen-suppressions=all --suppressions=../valgrind.supp ./lmdb-test
 
 msvc-release:
@@ -40,12 +40,12 @@ msvc-release:
     - windows
   script:
     - set WD=%cd%
-    - call "C:\Program Files (x86)\Microsoft Visual Studio\2017\BuildTools\VC\Auxiliary\Build\vcvars64.bat"
+    - call "C:\Program Files (x86)\Microsoft Visual Studio\2019\BuildTools\VC\Auxiliary\Build\vcvars64.bat"
     - cd %WD%
     - mkdir build-msvc-release
     - cd build-msvc-release
-    - cmake -G "NMake Makefiles JOM" -DCMAKE_BUILD_TYPE=Release ..
-    - jom lmdb-test
+    - cmake -GNinja -DCMAKE_BUILD_TYPE=Release ..
+    - ninja lmdb-test
     - lmdb-test
 
 msvc-debug:
@@ -53,12 +53,12 @@ msvc-debug:
     - windows
   script:
     - set WD=%cd%
-    - call "C:\Program Files (x86)\Microsoft Visual Studio\2017\BuildTools\VC\Auxiliary\Build\vcvars64.bat"
+    - call "C:\Program Files (x86)\Microsoft Visual Studio\2019\BuildTools\VC\Auxiliary\Build\vcvars64.bat"
     - cd %WD%
     - mkdir build-msvc-debug
     - cd build-msvc-debug
-    - cmake -G "NMake Makefiles JOM" -DCMAKE_BUILD_TYPE=Debug ..
-    - jom lmdb-test
+    - cmake -GNinja -DCMAKE_BUILD_TYPE=Debug ..
+    - ninja lmdb-test
     - lmdb-test
 
 clang-format:
@@ -67,7 +67,7 @@ clang-format:
   script:
     - mkdir build-clang-format
     - cd build-clang-format
-    - cmake ..
+    - cmake -GNinja ..
     - make lmdb-format-check
 
 clang-tidy:
@@ -78,5 +78,5 @@ clang-tidy:
     - export CC=clang-6.0
     - mkdir build-clang-tidy
     - cd build-clang-tidy
-    - cmake ..
-    - make -j12 lmdb-lint
+    - cmake -GNinja -DLMDB_LINT=On ..
+    - ninja lmdb-test

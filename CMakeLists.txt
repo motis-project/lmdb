@@ -64,6 +64,12 @@ target_link_libraries(lmdb-test lmdb)
 set_property(TARGET lmdb-test PROPERTY CXX_STANDARD 17)
 set_target_properties(lmdb-test PROPERTIES COMPILE_FLAGS "${lmdb-compile-flags}")
 
+option(LMDB_LINT "Run clang-tidy with the compiler." OFF)
+if(LMDB_LINT)
+  # clang-tidy will be run on all targets defined hereafter
+  include(cmake/clang-tidy.cmake)
+endif()
+
 add_custom_target(lmdb-format-check
     find
         ${CMAKE_CURRENT_SOURCE_DIR}/include
@@ -85,15 +91,3 @@ add_custom_target(lmdb-format-check
   COMMENT "Checking source code formatting"
   VERBATIM
 )
-
-add_custom_target(lmdb-lint
-  /usr/bin/python
-    ${CMAKE_CURRENT_SOURCE_DIR}/tools/run-clang-tidy.py
-      -exit-on-error
-      -header-filter "^${CMAKE_CURRENT_SOURCE_DIR}/include"
-      "^${CMAKE_CURRENT_SOURCE_DIR}/src/"
-      "^${CMAKE_CURRENT_SOURCE_DIR}/test/"
-  COMMENT "Running clang-tidy"
-  VERBATIM
-)
-add_dependencies(lmdb-lint lmdb lmdb-test)
