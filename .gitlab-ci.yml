@@ -68,7 +68,7 @@ clang-format:
     - mkdir build-clang-format
     - cd build-clang-format
     - cmake -GNinja ..
-    - make lmdb-format-check
+    - ninja lmdb-format-check
 
 clang-tidy:
   tags:
