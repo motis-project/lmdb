@@ -72,13 +72,6 @@ NtMapViewOfSection(IN PHANDLE sh, IN HANDLE ph,
 NTSTATUS WINAPI
 NtClose(HANDLE h);
 
-// see: http://www.openldap.org/lists/openldap-bugs/201808/msg00017.html
-#if defined(_WIN32) && defined(_MSC_VER)
-typedef long long int lmdb_off_t; // 64-bit on both 32- and 64- bit Windows
-#else
-typedef off_t lmdb_off_t;
-#endif
-
 /** getpid() returns int; MinGW defines pid_t but MinGW64 typedefs it
  *  as int64 which is wrong. MSVC doesn't define it at all, so just
  *  don't use it.
@@ -109,6 +102,13 @@ typedef off_t lmdb_off_t;
 #include <sys/file.h>
 #endif
 #include <fcntl.h>
+#endif
+
+// see: http://www.openldap.org/lists/openldap-bugs/201808/msg00017.html
+#if defined(_WIN32) && defined(_MSC_VER)
+typedef long long int lmdb_off_t; // 64-bit on both 32- and 64- bit Windows
+#else
+typedef off_t lmdb_off_t;
 #endif
 
 #if defined(__mips) && defined(__linux)
