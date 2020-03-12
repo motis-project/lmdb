@@ -2,12 +2,12 @@
 
 #include <cassert>
 #include <cstring>
+
 #include <limits>
 #include <optional>
 #include <string_view>
 
 #include "lmdb.h"
-
 #include "lmdb/enum_helper.h"
 #include "lmdb/error.h"
 
@@ -274,23 +274,23 @@ struct txn final {
     MDB_dbi dbi_;
   };
 
-  explicit txn(env& env, txn_flags const flags = txn_flags::NONE)
-      : committed_{false}, txn_{nullptr} {
+  explicit txn(env& env, txn_flags const flags = txn_flags::NONE) {
     ex(mdb_txn_begin(env.env_, nullptr, static_cast<unsigned>(flags), &txn_));
   }
 
-  txn(env& env, txn& parent, txn_flags const flags)
-      : committed_{false}, txn_{nullptr} {
+  txn(env& env, txn& parent, txn_flags const flags) {
     ex(mdb_txn_begin(env.env_, parent.txn_, static_cast<unsigned>(flags),
                      &txn_));
   }
 
-  txn(txn&& t) noexcept : committed_{t.committed_}, txn_{t.txn_} {
+  txn(txn&& t) noexcept
+      : committed_{t.committed_}, is_write_{t.is_write_}, txn_{t.txn_} {
     t.txn_ = nullptr;
   }
 
   txn& operator=(txn&& t) noexcept {
     committed_ = t.committed_;
+    is_write_ = t.is_write_;
     txn_ = t.txn_;
     t.txn_ = nullptr;
     return *this;
@@ -327,6 +327,7 @@ struct txn final {
     auto k = to_mdb_val(key);
     auto v = to_mdb_val(value);
     ex(mdb_put(txn_, dbi.dbi_, &k, &v, static_cast<unsigned>(flags)));
+    is_write_ = true;
   }
 
   template <typename T>
@@ -340,6 +341,7 @@ struct txn final {
         ec != MDB_KEYEXIST && ec != MDB_SUCCESS) {
       throw std::system_error{error::make_error_code(ec)};
     } else {
+      is_write_ = true;
       return ec != MDB_KEYEXIST;
     }
   }
@@ -361,7 +363,7 @@ struct txn final {
     auto k = to_mdb_val(key);
     auto const ec = mdb_del(txn_, dbi.dbi_, &k, nullptr);
     switch (ec) {
-      case MDB_SUCCESS: return true;
+      case MDB_SUCCESS: is_write_ = true; return true;
       case MDB_NOTFOUND: return false;
       default: throw std::system_error{error::make_error_code(ec)};
     }
@@ -372,14 +374,15 @@ struct txn final {
     auto k = to_mdb_val(key);
     auto v = to_mdb_val(value);
     switch (auto const ec = mdb_del(txn_, dbi.dbi_, &k, &v); ec) {
-      case MDB_SUCCESS: return true;
+      case MDB_SUCCESS: is_write_ = true; return true;
       case MDB_NOTFOUND: return false;
       default: throw std::system_error{error::make_error_code(ec)};
     }
   }
 
-  bool committed_;
-  MDB_txn* txn_;
+  bool committed_{false};
+  bool is_write_{false};
+  MDB_txn* txn_{nullptr};
 };
 
 struct cursor final {
@@ -389,13 +392,16 @@ struct cursor final {
   template <typename T>
   using opt_int_entry = std::optional<std::pair<T, std::string_view>>;
 
-  cursor(txn& txn, txn::dbi& dbi) : cursor_{nullptr} {
+  cursor(txn& txn, txn::dbi& dbi) : txn_{&txn}, cursor_{nullptr} {
     ex(mdb_cursor_open(txn.txn_, dbi.dbi_, &cursor_));
   }
 
-  cursor(cursor&& c) noexcept : cursor_{c.cursor_} { c.cursor_ = nullptr; }
+  cursor(cursor&& c) noexcept : txn_{c.txn_}, cursor_{c.cursor_} {
+    c.cursor_ = nullptr;
+  }
 
   cursor& operator=(cursor&& c) noexcept {
+    txn_ = c.txn_;
     cursor_ = c.cursor_;
     c.cursor_ = nullptr;
     return *this;
@@ -405,7 +411,7 @@ struct cursor final {
   cursor& operator=(cursor const&) = delete;
 
   ~cursor() {
-    if (cursor_ != nullptr) {
+    if (cursor_ != nullptr && !(txn_->committed_ && txn_->is_write_)) {
       mdb_cursor_close(cursor_);
       cursor_ = nullptr;
     }
@@ -474,11 +480,18 @@ struct cursor final {
     auto k = to_mdb_val(key);
     auto v = to_mdb_val(value);
     ex(mdb_cursor_put(cursor_, &k, &v, static_cast<unsigned>(flags)));
+    txn_->is_write_ = true;
   }
 
-  void del() { ex(mdb_cursor_del(cursor_, 0)); }
+  void del() {
+    ex(mdb_cursor_del(cursor_, 0));
+    txn_->is_write_ = true;
+  }
 
-  void del_nodupdata() { ex(mdb_cursor_del(cursor_, MDB_NODUPDATA)); }
+  void del_nodupdata() {
+    ex(mdb_cursor_del(cursor_, MDB_NODUPDATA));
+    txn_->is_write_ = true;
+  }
 
   mdb_size_t count() {
     mdb_size_t n;
@@ -490,6 +503,7 @@ struct cursor final {
     return {mdb_cursor_txn(cursor_), mdb_cursor_dbi(cursor_)};
   }
 
+  txn* txn_;
   MDB_cursor* cursor_;
 };
 
