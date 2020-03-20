@@ -267,8 +267,6 @@ struct txn final {
     }
 
     void close() { mdb_dbi_close(mdb_txn_env(txn_), dbi_); }
-    void clear() { ex(mdb_drop(txn_, dbi_, 0)); }
-    void remove() { mdb_drop(txn_, dbi_, 1); }
 
     MDB_txn* txn_;
     MDB_dbi dbi_;
@@ -320,6 +318,15 @@ struct txn final {
   }
 
   dbi dbi_open(dbi_flags flags) { return {txn_, nullptr, flags}; }
+
+  void dbi_clear(dbi const& db) {
+    ex(mdb_drop(txn_, db.dbi_, 0));
+    is_write_ = true;
+  }
+  void dbi_remove(dbi const& db) {
+    mdb_drop(txn_, db.dbi_, 1);
+    is_write_ = true;
+  }
 
   template <typename T>
   void put(dbi& dbi, T key, std::string_view value,
