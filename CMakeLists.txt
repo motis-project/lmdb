@@ -1,93 +1,53 @@
 project(lmdb)
 cmake_minimum_required(VERSION 3.9)
 
-set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
-
-find_package(Threads)
-
-if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
-  set(lmdb-compile-flags "\
-    -fno-strict-aliasing \
-    -Weverything \
-    -Wno-c++98-compat \
-    -Wno-c++98-compat-pedantic \
-    -Wno-newline-eof \
-    -Wno-missing-prototypes \
-    -Wno-padded \
-    -Wno-double-promotion \
-    -Wno-undef \
-    -Wno-undefined-reinterpret-cast \
-    -Wno-float-conversion \
-    -Wno-global-constructors \
-    -Wno-exit-time-destructors \
-    -Werror \
-  ")
-elseif(NOT MSVC)
-  set(lmdb-compile-flags "\
-    -Wall \
-    -Wextra \
-    -Werror \
-  ")
-else()
-  foreach(flags CMAKE_C_FLAGS CMAKE_C_FLAGS_RELEASE CMAKE_C_FLAGS_DEBUG)
-    string(REPLACE "/W3" "" ${flags} "${${flags}}")
-  endforeach()
-    
-  foreach(flags CMAKE_CXX_FLAGS CMAKE_CXX_FLAGS_RELEASE CMAKE_CXX_FLAGS_DEBUG)
-    string(REPLACE "/W3" "" ${flags} "${${flags}}")
-  endforeach()
-  
-  set(lmdb-compile-flags "\
-    /std:c++latest \
-    /W3 \
-  ")
+option(LMDB_LINT "Run clang-tidy with the compiler." OFF)
+if(LMDB_LINT)
+  include(cmake/clang-tidy.cmake)
 endif()
+
+add_subdirectory(doctest)
+find_package(Threads)
 
 file(GLOB_RECURSE lmdb-lib-files lib/*.c)
 if (MSVC)
   set_source_files_properties(${lmdb-lib-files} PROPERTIES COMPILE_FLAGS /w)
 endif()
+
 file(GLOB_RECURSE lmdb-src-files src/*.cc)
 add_library(lmdb STATIC "${lmdb-lib-files}" "${lmdb-src-files}")
+target_link_libraries(lmdb ${CMAKE_THREAD_LIBS_INIT})
 if (MSVC)
-  target_link_libraries(lmdb ${CMAKE_THREAD_LIBS_INIT} ntdll)
-else()
-  target_link_libraries(lmdb ${CMAKE_THREAD_LIBS_INIT})
+  target_link_libraries(lmdb ntdll)
 endif()
 target_include_directories(lmdb PUBLIC include)
 target_include_directories(lmdb SYSTEM PUBLIC lib)
-set_property(TARGET lmdb PROPERTY CXX_STANDARD 17)
+target_compile_features(lmdb PUBLIC cxx_std_17)
 
 file(GLOB_RECURSE lmdb-test-files test/*.cc)
 add_executable(lmdb-test ${lmdb-test-files})
-target_link_libraries(lmdb-test lmdb)
-set_property(TARGET lmdb-test PROPERTY CXX_STANDARD 17)
-set_target_properties(lmdb-test PROPERTIES COMPILE_FLAGS "${lmdb-compile-flags}")
-
-option(LMDB_LINT "Run clang-tidy with the compiler." OFF)
-if(LMDB_LINT)
-  # clang-tidy will be run on all targets defined hereafter
-  include(cmake/clang-tidy.cmake)
+target_link_libraries(lmdb-test lmdb doctest)
+if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
+  target_compile_options(lmdb-test PRIVATE
+    -fno-strict-aliasing
+    -Weverything
+    -Wno-c++98-compat
+    -Wno-c++98-compat-pedantic
+    -Wno-newline-eof
+    -Wno-missing-prototypes
+    -Wno-padded
+    -Wno-double-promotion
+    -Wno-undef
+    -Wno-undefined-reinterpret-cast
+    -Wno-float-conversion
+    -Wno-global-constructors
+    -Wno-exit-time-destructors
+    -Werror
+  )
+elseif(NOT MSVC)
+  target_compile_options(lmdb-test PRIVATE
+    -Wall
+    -Wextra
+    -Werror
+  )
 endif()
-
-add_custom_target(lmdb-format-check
-    find
-        ${CMAKE_CURRENT_SOURCE_DIR}/include
-        ${CMAKE_CURRENT_SOURCE_DIR}/src
-        ${CMAKE_CURRENT_SOURCE_DIR}/test
-      -type f
-      -not -name "doctest.h"
-      -a
-      \(
-      -name "*.cc"
-      -o -name "*.h"
-      -o -name "*.hpp"
-      \)
-      -print0
-    | xargs -0 clang-format-6.0 -i
-  COMMAND
-    git status --porcelain | xargs -I {} -0 test -z \"{}\"
-  WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-  COMMENT "Checking source code formatting"
-  VERBATIM
-)
