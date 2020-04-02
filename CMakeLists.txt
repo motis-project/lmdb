@@ -6,7 +6,7 @@ if(LMDB_LINT)
   include(cmake/clang-tidy.cmake)
 endif()
 
-add_subdirectory(doctest)
+include(cmake/pkg.cmake)
 find_package(Threads)
 
 file(GLOB_RECURSE lmdb-lib-files lib/*.c)
