@@ -224,7 +224,6 @@ struct env final {
 
 template <typename T>
 inline std::enable_if_t<std::is_integral_v<T>, MDB_val> to_mdb_val(T const& s) {
-  static_assert(sizeof(s) == sizeof(size_t) || sizeof(s) == sizeof(unsigned));
   return MDB_val{sizeof(T), const_cast<void*>(  // NOLINT
                                 reinterpret_cast<void const*>(&s))};
 }
