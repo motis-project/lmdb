@@ -16,6 +16,7 @@ endif()
 
 file(GLOB_RECURSE lmdb-src-files src/*.cc)
 add_library(lmdb STATIC "${lmdb-lib-files}" "${lmdb-src-files}")
+target_compile_definitions(lmdb PRIVATE MDB_USE_ROBUST=0)
 target_link_libraries(lmdb ${CMAKE_THREAD_LIBS_INIT})
 if (MSVC)
   target_link_libraries(lmdb ntdll)
