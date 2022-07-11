@@ -267,6 +267,8 @@ struct txn final {
 
     void close() { mdb_dbi_close(mdb_txn_env(txn_), dbi_); }
 
+    void clear() { mdb_drop(txn_, dbi_, 0); }
+
     MDB_txn* txn_;
     MDB_dbi dbi_;
   };
